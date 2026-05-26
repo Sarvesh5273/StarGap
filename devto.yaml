@@ -1,0 +1,76 @@
+name: devto
+version: 0.1.0
+dsl_version: 3
+backend: http
+base_url: "https://dev.to/api"
+
+inputs:
+  DEVTO_API_KEY:
+    kind: secret
+    hint: DEV.to API key for the reading list endpoint.
+
+auth:
+  type: HeaderAuth
+  headers:
+    - name: api-key
+      from: template
+      template: "{{input.DEVTO_API_KEY}}"
+
+test_queries:
+  - SELECT title FROM devto.reading_list LIMIT 1
+
+tables:
+  - name: reading_list
+    description: Articles saved to the user's DEV.to reading list
+    request:
+      method: GET
+      path: /readinglist
+    response:
+      row_strategy: direct
+    columns:
+      - name: id
+        type: Int64
+        expr:
+          kind: path
+          path:
+            - id
+      - name: status
+        type: Utf8
+        expr:
+          kind: path
+          path:
+            - status
+      - name: created_at
+        type: Utf8
+        expr:
+          kind: path
+          path:
+            - created_at
+      - name: title
+        type: Utf8
+        expr:
+          kind: path
+          path:
+            - article
+            - title
+      - name: tag_list
+        type: Utf8
+        expr:
+          kind: path
+          path:
+            - article
+            - tag_list
+      - name: url
+        type: Utf8
+        expr:
+          kind: path
+          path:
+            - article
+            - url
+      - name: reading_time
+        type: Int64
+        expr:
+          kind: path
+          path:
+            - article
+            - reading_time_minutes

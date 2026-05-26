@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "coral": {
+      "command": "coral",
+      "args": ["mcp"],
+      "description": "Coral MCP server exposing GitHub, DEV.to and HackerNews SQL queries as tools"
+    }
+  }
+}
