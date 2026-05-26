@@ -99,7 +99,8 @@ export function runStarGapQuery(username: string): StarGapResult[] {
       hn.url AS hn_url
     FROM devto.reading_list d
     JOIN hackernews.top_stories hn
-      ON LOWER(hn.title) LIKE '%' || LOWER(d.tag_list) || '%'
+      ON LOWER(d.tag_list) LIKE '%' || LOWER(SPLIT_PART(hn.title, ' ', 1)) || '%'
+      OR LOWER(d.tag_list) LIKE '%' || LOWER(SPLIT_PART(hn.title, ' ', 2)) || '%'
     WHERE hn.points IS NOT NULL
     ORDER BY hn.points DESC
     LIMIT 10
