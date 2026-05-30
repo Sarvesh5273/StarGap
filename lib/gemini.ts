@@ -24,7 +24,6 @@ export async function generateInsight(
 
   const prompt = `
 You are analyzing developer behavior.
-
 A developer has repeatedly saved content across multiple platforms.
 
 GitHub Stars:
@@ -37,7 +36,6 @@ Matching Hacker News Stories:
 ${hnStories.join('\n')}
 
 Your task:
-
 1. Identify recurring technology themes.
 2. Explain what interests this developer appears to have.
 3. Point out any pattern of repeated interest.
@@ -53,29 +51,25 @@ Rules:
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
+          contents: [{ parts: [{ text: prompt }] }]
+        })
       }
     )
 
-    const data = await res.json()
+    if (!res.ok) {
+      console.error('Gemini error:', res.status, await res.text())
+      return 'Signal analysis temporarily unavailable.'
+    }
 
-    return (
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      'Analysis complete.'
-    )
-  } catch {
+    const data = await res.json()
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Analysis complete.'
+  } catch (e) {
+    console.error('Gemini fetch failed:', e)
     return 'Unable to generate insight.'
   }
 }
