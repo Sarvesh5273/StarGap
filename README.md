@@ -1,38 +1,192 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ⭐ StarGap
 
-> To use StarGap with Claude Desktop, add the contents of `coral.mcp.json` to your Claude Desktop MCP config. Claude can then query your developer signals directly.
+> You starred repos meaning to learn them. You bookmarked articles meaning to read them. You never came back. StarGap finds which ones are blowing up on HackerNews right now — before the moment passes.
 
-## Getting Started
+**Built for Pirates of the Coral-bean Hackathon · WeMakeDevs × Coral**
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## What It Does
+
+StarGap is a personal developer signal agent. It runs **cross-source SQL JOINs** across three live data sources using [Coral](https://withcoral.com) to answer one question:
+
+> *Which technologies am I repeatedly saving but never acting on — and are they trending right now?*
+
+It surfaces the overlap between:
+- **GitHub starred repos** — what you bookmarked to build with
+- **DEV.to reading list** — what you bookmarked to learn from
+- **HackerNews front page** — what's blowing up right now
+
+No single platform gives you this. The insight only exists in the JOIN.
+
+---
+
+## Demo
+
+![StarGap UI](public/demo.png)
+
+> *"You starred ollama, langchain, and fastapi. All three have trending HN stories today. You've been circling this stack for months."*
+
+---
+
+## Architecture
+
+```
+Browser → Next.js API Route → execSync(coral sql) → Coral Query Engine
+                                                           ├── github.activity_list_repos_starred_by_user
+                                                           ├── hackernews.top_stories
+                                                           └── devto.reading_list
+                                    ↓
+                             Gemini 2.0 Flash (insight generation)
+                                    ↓
+                             JSON response → UI
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Coral SQL Queries
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+**Query 1 — GitHub Stars × HackerNews**
+```sql
+SELECT
+  json_get_str(g.json, 'name') AS repo,
+  json_get_str(g.json, 'language') AS language,
+  hn.title AS hn_story,
+  hn.points,
+  hn.url
+FROM github.activity_list_repos_starred_by_user g
+JOIN hackernews.top_stories hn
+  ON LOWER(hn.title) LIKE '%' || LOWER(json_get_str(g.json, 'language')) || '%'
+  OR LOWER(hn.title) LIKE '%' || LOWER(json_get_str(g.json, 'name')) || '%'
+WHERE g.username = :username
+  AND hn.points IS NOT NULL
+ORDER BY hn.points DESC;
+```
 
-## Learn More
+**Query 2 — DEV.to Reading List × HackerNews**
+```sql
+SELECT
+  d.title AS devto_article,
+  hn.title AS hn_story,
+  hn.points
+FROM devto.reading_list d
+JOIN hackernews.top_stories hn
+  ON LOWER(d.tag_list) LIKE '%' || LOWER(SPLIT_PART(hn.title, ' ', 1)) || '%'
+  OR LOWER(d.tag_list) LIKE '%' || LOWER(SPLIT_PART(hn.title, ' ', 2)) || '%'
+WHERE hn.points IS NOT NULL
+ORDER BY hn.points DESC;
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Coral Sources Used
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Source | Type | Tables Used |
+|--------|------|-------------|
+| `github` | Bundled | `activity_list_repos_starred_by_user` |
+| `hackernews` | **Custom source spec** (`devto.yaml`) | `top_stories`, `search_stories` |
+| `devto` | **Custom source spec** (`devto.yaml`) | `reading_list` |
 
-## Deploy on Vercel
+> The HackerNews and DEV.to sources are custom-built for this project. The HackerNews source spec is submitted separately for the custom source bounty.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Setup
+
+### Prerequisites
+- [Coral CLI](https://withcoral.com/docs) installed (`brew install withcoral/tap/coral`)
+- Node.js 18+
+- GitHub personal access token (repo read scope)
+- DEV.to API key (`dev.to/settings/extensions`)
+- Gemini API key (`aistudio.google.com/apikey`)
+
+### 1. Add Coral Sources
+
+```bash
+# GitHub (bundled)
+coral source add --interactive github
+
+# HackerNews (custom — no API key needed)
+coral source add --file ./hackernews.yaml
+
+# DEV.to (custom)
+export DEVTO_API_KEY=your_key_here
+coral source add --file ./devto.yaml
+```
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in `.env.local`:
+```
+GITHUB_USERNAME=your_github_username
+GEMINI_API_KEY=your_gemini_key
+DEVTO_API_KEY=your_devto_key
+```
+
+### 3. Run
+
+```bash
+npm install
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) → click **Run Analysis**.
+
+---
+
+## MCP Integration
+
+StarGap exposes Coral as an MCP server, letting you query your developer signals directly from Claude Desktop.
+
+Add to your Claude Desktop MCP config:
+```json
+{
+  "mcpServers": {
+    "coral": {
+      "command": "coral",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Then ask Claude: *"Which of my GitHub stars are trending on HackerNews today?"*
+
+---
+
+## Project Structure
+
+```
+app/
+  page.tsx                 ← Main UI
+  api/analyze/route.ts     ← API route (runs Coral queries + Gemini insight)
+lib/
+  coral.ts                 ← Coral CLI wrapper + query logic
+  gemini.ts                ← Gemini 2.0 Flash insight generation
+hackernews.yaml            ← Custom Coral source spec for HackerNews
+devto.yaml                 ← Custom Coral source spec for DEV.to
+coral.mcp.json             ← MCP server config for Claude Desktop
+```
+
+---
+
+## Why Coral
+
+The insight StarGap produces is **impossible without cross-source JOINs**. You can't get this by:
+- Opening GitHub and filtering stars
+- Checking HackerNews manually
+- Browsing your DEV.to reading list
+
+Coral makes a three-way JOIN across live external APIs feel like a local SQL query. That's the entire point.
+
+---
+
+## Hackathon Track
+
+**Track 2 — Personal Agent**
+
+Built solo by [@Sarvesh5273](https://github.com/Sarvesh5273)
