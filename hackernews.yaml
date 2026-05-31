@@ -1,0 +1,45 @@
+name: hackernews
+version: 0.1.0
+dsl_version: 3
+backend: http
+base_url: "https://hn.algolia.com/api/v1"
+
+test_queries:
+  - SELECT title, points, author FROM hackernews.top_stories LIMIT 1
+
+tables:
+  - name: top_stories
+    description: Current front page stories from Hacker News
+    request:
+      method: GET
+      path: /search
+      query:
+        - name: tags
+          from: literal
+          value: front_page
+    response:
+      rows_path:
+        - hits
+    pagination:
+      mode: page
+      page_size:
+        default: 50
+        max: 50
+        query_param: hitsPerPage
+      page_param: page
+      page_start: 0
+    columns:
+      - name: objectID
+        type: Utf8
+      - name: title
+        type: Utf8
+      - name: url
+        type: Utf8
+      - name: points
+        type: Int64
+      - name: author
+        type: Utf8
+      - name: created_at
+        type: Utf8
+      - name: num_comments
+        type: Int64
